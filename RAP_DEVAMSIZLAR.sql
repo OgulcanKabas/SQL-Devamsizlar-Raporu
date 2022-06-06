@@ -1,0 +1,107 @@
+
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+-- EXEC [dbo].[RAP_DEVAMSIZLAR] '','','','','','','','',''
+
+CREATE PROC [dbo].[RAP_DEVAMSIZLAR]
+(
+	@LoginID int = NULL,
+	@Ad NVARCHAR(50) =null,
+	@Soyad NVARCHAR(50)=null,
+	@FirmaAdi NVARCHAR(50)=null,
+	@BolgeAdi NVARCHAR(50)=null,
+	@DepartmanAdi nvarchar(50)=null,
+	@PozisyonAdi NVARCHAR(50)=null,
+	@GorevAdi NVARCHAR(50)=null,
+	@YakaAdi NVARCHAR(50)=null,
+	@TarihBas DATETIME = null,
+	@TarihBit DATETIME = null
+	)
+AS
+ BEGIN
+	SELECT * 
+	FROM 
+			(SELECT 
+					SCL.Id AS PersonelID
+					,SCL.SICIL_TIP AS SICIL_TIP
+					,SCL.CIKIS_TARIHI
+					,SCL.Ad AS AD
+					,SCL.Soyad AS SOYAD
+					,SCL.SICIL_NO
+					,SCL.IS_ACTIVE
+					,SCL.FIRMA_ID AS FirmaID
+					,F.ADI AS FirmaAd
+					,SCL.BOLGE_ID AS BolgeID
+					,Bolge.ADI AS BolgeAd
+					,SCL.DEPARTMAN_ID AS DepartmanId
+					,D.ADI AS DepartmanAd
+					,SCL.POZISYON_ID AS PozisyonID
+					,P.ADI AS PozisyonAd
+					,CASE
+						WHEN SCL.GOREV_ID > 0 THEN G.ADI ELSE '' END AS 'GorevAd'
+					,SCL.YAKA_ID AS YakaID
+					,YAKA.ADI AS YakaAd
+					,HK.UCRETLIIZINSURESI AS UcretliIzinSuresi
+					,HK.GIRISKAYITTIPI AS GirisKayitTipi
+					,M.SURE
+					,M.TATILMI
+					,Hk.MESAITARIH AS 'MesaiTarihi'
+					,HK.HAKEDIS AS HakEdis
+					,M.BASLANGIC AS MesaiBaslangic
+					,M.BITIS AS MesaiBitis
+					,CASE 
+						WHEN HK.GIRISKAYITTIPI = 0 AND  hk.CIKISKAYITTIPI = 0 AND UCRETLIIZINSURESI=0 THEN 1 ELSE 0 END AS DevamDurum
+					,CASE 
+						WHEN hk.UCRETLIIZINSURESI > 0 OR Hk.UCRETSIZIZINSURESI > 0 THEN  Iz.ACIKLAMA END AS IzinAciklama
+			 FROM TBL_SICIL 	AS SCL
+			 LEFT JOIN TBL_FIRMA AS F ON F.Id=SCL.FIRMA_ID 
+			 LEFT JOIN TBL_BOLGE AS BOLGE ON Bolge.ID=SCL.BOLGE_ID 
+			 LEFT JOIN TBL_DEPARTMAN AS D ON D.ID=SCL.DEPARTMAN_ID
+			 LEFT JOIN TBL_POZISYON AS P ON P.Id= SCL.POZISYON_ID 
+			 LEFT JOIN TBL_GOREV AS G ON G.ID=SCL.GOREV_ID 
+			 LEFT JOIN TBL_YAKA AS YAKA ON Yaka.Id=SCL.YAKA_ID
+			 LEFT JOIN TBL_HESAPLANANKAYIT AS HK ON HK.SICIL_ID=SCL.Id 
+			 LEFT JOIN TBL_MESAILER AS M ON M.ID=HK.MESAI_ID
+			 LEFT JOIN TBL_IZINLER AS IZ ON IZ.HSK_ID=HK.ID AND HK.GIRISKAYITTIPI=0
+			 
+			 WHERE
+			SCL.SICIL_TIP != 2
+			AND HK.RESMITATIL IS NULL
+			AND HK.HAKEDIS = 0
+			AND M.BASLANGIC <> M.BITIS
+			AND HK.ID NOT IN (SELECT HSK_ID FROM dbo.TBL_IZINLER WHERE IS_ACTIVE = 1)
+			AND HK.GIRIS IS NULL
+			 
+			 ) AS W
+		
+	
+
+	--W.SICIL_TIP!=2 
+	--AND W.CIKIS_TARIHI IS NULL 
+	--AND W.Sure>0 AND W.UcretliIzinSuresi=0 
+	--AND W.GirisKayitTipi=0 
+	--AND W.IS_ACTIVE=1 
+	--AND (W.TATILMI=0 or W.HakEdis=0)
+
+	WHERE
+	
+	ISNULL(W.AD,'') LIKE IIF(@Ad IS NULL, '%%','%'+@Ad+'%')
+	AND ISNULL(W.SOYAD,'') LIKE IIF(@Soyad IS NULL, '%%','%'+@Soyad+'%')
+	AND ISNULL(W.FirmaAd,'') LIKE IIF(@FirmaAdi IS NULL, '%%','%'+@FirmaAdi+'%')
+	AND ISNULL(W.BolgeAd,'') LIKE IIF(@BolgeAdi IS NULL, '%%','%'+@BolgeAdi+'%')
+	AND ISNULL(W.PozisyonAd,'') LIKE IIF(@PozisyonAdi IS NULL, '%%','%'+@PozisyonAdi+'%')
+	AND ISNULL(W.GorevAd,'') LIKE IIF(@GorevAdi IS NULL, '%%','%'+@GorevAdi+'%')
+	AND ISNULL(W.YakaAd,'') LIKE IIF(@YakaAdi IS NULL, '%%', '%'+@YakaAdi+'%')
+	AND CONVERT(DATE,W.MesaiTarihi) >= IIF(@TarihBas IS NULL, (CONVERT(DATE,(SELECT TOP 1 OLAYZAMANI from TBL_HAMKAYIT ORDER BY OLAYZAMANI ASC))),CONVERT(DATE,@TarihBas))
+	AND CONVERT(DATE,W.MesaiTarihi) <= IIF(@TarihBit IS NULL ,CONVERT(DATE,GETDATE()),CONVERT(DATE,@TarihBit))
+
+	ORDER BY W.MesaiTarihi ASC, W.AD,W.SOYAD
+END
+
+	--EXEC [dbo].[RAP_DEVAMSIZLAR] 'Nilay',null,null,null,null,null,null,'2021-01-01 00:00:00.000','2021-01-17 00:00:00.000'
